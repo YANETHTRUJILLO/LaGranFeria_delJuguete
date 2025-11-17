@@ -1,0 +1,16 @@
+pipeline {
+  agent any
+  stages {
+    stage('Checkout') {
+      steps {
+        git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete.git', branch: 'main'
+      }
+    }
+    stage('Build and Run Docker') {
+      steps {
+        sh 'docker-compose down || true'
+        sh 'docker-compose up -d --build'
+      }
+    }
+  }
+}
