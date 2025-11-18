@@ -2,24 +2,38 @@
 // Incluir el archivo de conexión
 include('../conexion.php');
 
+header('Content-Type: application/json');
+
 try {
     // Consulta SQL para obtener los colores únicos
     $query = "SELECT DISTINCT color FROM producto";
 
     // Preparar la consulta
-    $statement = $conn->prepare($query);
+    $stmt = $conn->prepare($query);
 
-    // Ejecutar la consulta
-    $statement->execute();
+    if (!$stmt) {
+        echo json_encode(["error" => "Error al preparar la consulta"]);
+        exit;
+    }
+
+    // Ejecutar
+    $stmt->execute();
 
     // Obtener resultados
-    $colores = $statement->fetchAll(PDO::FETCH_ASSOC);
+    $result = $stmt->get_result();
+    $colores = [];
 
-    // Enviar los resultados como respuesta JSON
-    header('Content-Type: application/json');
+    while ($row = $result->fetch_assoc()) {
+        $colores[] = $row;
+    }
+
+    // Enviar respuesta
     echo json_encode($colores);
-} catch (PDOException $e) {
-    // Manejar errores
-    echo "Error: " . $e->getMessage();
+
+    $stmt->close();
+    $conn->close();
+
+} catch (Exception $e) {
+    echo json_encode(["error" => $e->getMessage()]);
 }
 ?>

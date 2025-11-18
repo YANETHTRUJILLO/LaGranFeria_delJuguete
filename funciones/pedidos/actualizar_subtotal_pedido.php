@@ -1,28 +1,40 @@
 <?php
 // actualizar_subtotal_pedido.php
 
-// Incluir el archivo de conexión a la base de datos
 include('conexion.php');
 
-// Obtener los datos del POST
-$cdped = $_POST['cdped'];
-$sub_total = $_POST['sub_total'];
+// Validar datos recibidos
+$cdped = $_POST['cdped'] ?? null;
+$sub_total = $_POST['sub_total'] ?? null;
 
-try {
-    // Actualizar el sub_total en la tabla de pedidos
-    $query = "UPDATE pedido SET sub_total = :sub_total WHERE cdped = :cdped";
-    $statement = $pdo->prepare($query);
-    $statement->bindParam(':sub_total', $sub_total);
-    $statement->bindParam(':cdped', $cdped);
-    
-    // Ejecutar la consulta
-    $statement->execute();
-
-    // Enviar respuesta (código de estado 200)
-    http_response_code(200);
-} catch (PDOException $e) {
-    // Manejar excepciones en caso de error
-    http_response_code(500); // Error del servidor
-    echo "Error al actualizar el subtotal: " . $e->getMessage();
+if (!$cdped || !$sub_total) {
+    http_response_code(400);
+    echo "Faltan parámetros";
+    exit;
 }
+
+// Preparar consulta
+$sql = "UPDATE pedido SET sub_total = ? WHERE cdped = ?";
+$stmt = $conn->prepare($sql);
+
+if (!$stmt) {
+    http_response_code(500);
+    echo "Error al preparar la consulta: " . $conn->error;
+    exit;
+}
+
+// Bind de parámetros
+$stmt->bind_param("di", $sub_total, $cdped); 
+// d = double (sub_total), i = int (cdped)
+
+// Ejecutar
+if ($stmt->execute()) {
+    http_response_code(200);
+} else {
+    http_response_code(500);
+    echo "Error al actualizar el subtotal: " . $stmt->error;
+}
+
+$stmt->close();
+$conn->close();
 ?>

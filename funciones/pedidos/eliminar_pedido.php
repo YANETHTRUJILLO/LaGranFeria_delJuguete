@@ -2,40 +2,59 @@
 session_start();
 include_once('../conexion.php');
 
-// Verificar si se ha enviado el cdped a eliminar
+// Verificar si llegó cdped
 if (isset($_POST['cdped'])) {
-    // Obtener el id del pedido a eliminar
+
     $cdped = $_POST['cdped'];
 
-    try {
-        // Obtener la cantidad del pedido para restaurar el stock
-        $stmt = $conn->prepare("SELECT cdpro, cantidad FROM pedido WHERE cdped = :cdped");
-        $stmt->bindParam(':cdped', $cdped);
-        $stmt->execute();
-        $pedido = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        $cdpro = $pedido['cdpro'];
-        $cantidad = $pedido['cantidad'];
-
-        // Actualizar la cantidad en la tabla producto sumándole la cantidad del pedido
-        $updateStmt = $conn->prepare("UPDATE producto SET stock = stock + :cantidad WHERE cdpro = :cdpro");
-        $updateStmt->bindParam(':cantidad', $cantidad);
-        $updateStmt->bindParam(':cdpro', $cdpro);
-        $updateStmt->execute();
-
-        // Eliminar el pedido
-        $deleteStmt = $conn->prepare("DELETE FROM pedido WHERE cdped = :cdped");
-        $deleteStmt->bindParam(':cdped', $cdped);
-        $deleteStmt->execute();
-
-        // Comprobar si se eliminó con éxito y enviar una respuesta al cliente
-        $eliminado = $deleteStmt->rowCount() > 0;
-        echo json_encode(['success' => $eliminado]);
-
-    } catch (PDOException $e) {
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    // 1️⃣ — Obtener cdpro y cantidad antes de borrar
+    $stmt = $conn->prepare("SELECT cdpro, cantidad FROM pedido WHERE cdped = ?");
+    if (!$stmt) {
+        echo json_encode(['success' => false, 'error' => $conn->error]);
+        exit;
     }
+
+    $stmt->bind_param("i", $cdped);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $pedido = $result->fetch_assoc();
+
+    if (!$pedido) {
+        echo json_encode(['success' => false, 'error' => 'Pedido no encontrado']);
+        exit;
+    }
+
+    $cdpro = $pedido['cdpro'];
+    $cantidad = $pedido['cantidad'];
+    $stmt->close();
+
+    // 2️⃣ — Restaurar stock
+    $update = $conn->prepare("UPDATE producto SET stock = stock + ? WHERE cdpro = ?");
+    if (!$update) {
+        echo json_encode(['success' => false, 'error' => $conn->error]);
+        exit;
+    }
+
+    $update->bind_param("ii", $cantidad, $cdpro);
+    $update->execute();
+    $update->close();
+
+    // 3️⃣ — Eliminar el pedido
+    $delete = $conn->prepare("DELETE FROM pedido WHERE cdped = ?");
+    if (!$delete) {
+        echo json_encode(['success' => false, 'error' => $conn->error]);
+        exit;
+    }
+
+    $delete->bind_param("i", $cdped);
+    $delete->execute();
+
+    $eliminado = $delete->affected_rows > 0;
+    $delete->close();
+
+    echo json_encode(['success' => $eliminado]);
+
 } else {
-    echo json_encode(['success' => false, 'error' => 'No se recibió el ID del pedido a eliminar']);
+    echo json_encode(['success' => false, 'error' => 'No se recibió cdped']);
 }
 ?>

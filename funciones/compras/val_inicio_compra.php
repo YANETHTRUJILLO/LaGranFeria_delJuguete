@@ -7,62 +7,72 @@ if (!isset($_SESSION['cdusu'])) {
     $respuesta->detail = "No está logueado";
     $respuesta->inicio_sesion = true;
 } else {
+
     include_once('../conexion.php');
 
     $cdusu = $_SESSION['cdusu'];
     $cdpro = $_POST['cdpro'];
     $cantidad = $_POST['cantidad'];
 
+    // Iniciar transacción
+    $conn->begin_transaction();
+
     try {
-        // Inicia la transacción
-        $conn->beginTransaction();
 
-        // Consulta para obtener el stock actual
-        $stmt = $conn->prepare("SELECT stock FROM producto WHERE cdpro = :cdpro FOR UPDATE");
-        $stmt->bindParam(':cdpro', $cdpro);
+        // Obtener stock con bloqueo
+        $sql = "SELECT stock FROM producto WHERE cdpro = ? FOR UPDATE";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $cdpro);
         $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $stock_actual = $result['stock'];
+        $stmt->bind_result($stock_actual);
+        $stmt->fetch();
+        $stmt->close();
 
-        // Verifica si hay suficiente stock para la compra
+        // Verificar stock
         if ($stock_actual >= $cantidad) {
-            // Actualiza el stock restando la cantidad comprada
-            $nuevo_stock = $stock_actual - $cantidad;
-            $stmt = $conn->prepare("UPDATE producto SET stock = :nuevo_stock WHERE cdpro = :cdpro");
-            $stmt->bindParam(':nuevo_stock', $nuevo_stock);
-            $stmt->bindParam(':cdpro', $cdpro);
-            $stmt->execute();
 
-            // Resto del código para realizar la inserción en la tabla pedido
-            $sql = "INSERT INTO pedido (cdusu, cdpro, cantidad, fchped, estado, dirpedusu, celusuped) 
-                    VALUES (:cdusu, :cdpro, :cantidad, CURRENT_TIMESTAMP, 1, '', '')";
+            // Nuevo stock
+            $nuevo_stock = $stock_actual - $cantidad;
+
+            // Actualizar stock
+            $sql = "UPDATE producto SET stock = ? WHERE cdpro = ?";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ii", $nuevo_stock, $cdpro);
+            $stmt->execute();
+            $stmt->close();
+
+            // Insertar pedido
+            $sql = "INSERT INTO pedido (cdusu, cdpro, cantidad, fchped, estado, dirpedusu, celusuped)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, 1, '', '')";
 
             $stmt = $conn->prepare($sql);
-            $stmt->bindParam(':cdusu', $cdusu);
-            $stmt->bindParam(':cdpro', $cdpro);
-            $stmt->bindParam(':cantidad', $cantidad);
+            $stmt->bind_param("iii", $cdusu, $cdpro, $cantidad);
 
             if ($stmt->execute()) {
                 $conn->commit();
                 $respuesta->state = true;
                 $respuesta->detail = "Producto agregado";
             } else {
-                $conn->rollBack();
+                $conn->rollback();
                 $respuesta->state = false;
                 $respuesta->detail = "No se pudo agregar el producto. Intente más tarde";
             }
+
+            $stmt->close();
+
         } else {
-            $conn->rollBack();
+            $conn->rollback();
             $respuesta->state = false;
             $respuesta->detail = "La cantidad seleccionada supera el stock disponible";
         }
-    } catch (PDOException $e) {
-        $conn->rollBack();
+
+    } catch (Exception $e) {
+        $conn->rollback();
         $respuesta->state = false;
         $respuesta->detail = "Error al realizar la compra: " . $e->getMessage();
     }
 
-    $conn = null;
+    $conn->close();
 }
 
 header('Content-Type: application/json');

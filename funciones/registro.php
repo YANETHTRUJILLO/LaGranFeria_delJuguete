@@ -8,31 +8,27 @@ $emailusu = $_POST['emailusu'];
 $passusu = $_POST['passusu'];
 
 // Verificar si el correo electrónico ya está registrado
-$sql_check_email = "SELECT * FROM USUARIO WHERE emailusu = :emailusu";
+$sql_check_email = "SELECT * FROM usuario WHERE emailusu = ?";
 $stmt_check_email = $conn->prepare($sql_check_email);
-$stmt_check_email->bindParam(':emailusu', $emailusu);
+$stmt_check_email->bind_param("s", $emailusu);
 $stmt_check_email->execute();
+$result = $stmt_check_email->get_result();
 
-$count = $stmt_check_email->rowCount();
-
-if ($count > 0) {
-    // El correo electrónico ya está registrado, redirigir con un mensaje de error
+if ($result->num_rows > 0) {
+    // El correo electrónico ya está registrado
     header('Location: ../login.php?e=2');
-} else {
-    // El correo electrónico no está registrado, proceder con el registro
-    $sql_insert = "INSERT INTO USUARIO (nomusu, apeusu, emailusu, passusu) VALUES (:nomusu, :apeusu, :emailusu, :passusu)";
-    $stmt_insert = $conn->prepare($sql_insert);
-    $stmt_insert->bindParam(':nomusu', $nomusu);
-    $stmt_insert->bindParam(':apeusu', $apeusu);
-    $stmt_insert->bindParam(':emailusu', $emailusu);
-    $stmt_insert->bindParam(':passusu', $passusu);
-
-    if ($stmt_insert->execute()) {
-        // Registro exitoso, redirigir o realizar alguna acción adicional
-        header('Location: ../login.php'); // Redirigir al formulario de inicio de sesión
-    } else {
-        // Error durante el registro
-        header('Location: ../login.php?e=1'); // Redirigir con mensaje de error de conexión
-    }
+    exit;
 }
+
+// Insertar usuario nuevo
+$sql_insert = "INSERT INTO usuario (nomusu, apeusu, emailusu, passusu) VALUES (?, ?, ?, ?)";
+$stmt_insert = $conn->prepare($sql_insert);
+$stmt_insert->bind_param("ssss", $nomusu, $apeusu, $emailusu, $passusu);
+
+if ($stmt_insert->execute()) {
+    header('Location: ../login.php');
+} else {
+    header('Location: ../login.php?e=1');
+}
+
 ?>

@@ -1,39 +1,48 @@
 <?php
-// Incluir el archivo de conexión a la base de datos
+// actualizar_estado_pedido.php
+
 include_once('../conexion.php');
+
+$respuesta = ['success' => false];
 
 // Verificar si se ha enviado el estado del pedido
 if (isset($_POST['estado'])) {
-    $nuevoEstado = $_POST['estado']; // Estado que se desea establecer
+    $nuevoEstado = $_POST['estado'];
 
-    // Verificar si el nuevo estado es "Pendiente de Pago"
+    // Validar estado
     if ($nuevoEstado === 'Pendiente de Pago') {
-        $valorEstado = 2; // Valor en la base de datos para "Pendiente de Pago" 
-        
-        try {
-            // Query para actualizar el estado del pedido en la tabla 'pedido'
-            $sql = "UPDATE pedido SET estado = :valorEstado"; // Ajusta 'pedido' por el nombre correcto de tu tabla
-            $stmt = $conn->prepare($sql);
-            $stmt->bindParam(':valorEstado', $valorEstado);
-            $stmt->execute();
 
-            // Enviar respuesta de éxito a la solicitud AJAX
-            $respuesta['success'] = true;
-            echo json_encode($respuesta);
-        } catch (PDOException $e) {
-            // Enviar respuesta de error en caso de excepción
-            $respuesta['success'] = false;
-            $respuesta['error'] = $e->getMessage();
-            echo json_encode($respuesta);
+        $valorEstado = 2; // Código en BD
 
-            // Agregar un registro de error adicional
-            error_log('Error al ejecutar la consulta SQL: ' . $e->getMessage(), 0);
+        // Consulta SQL
+        $sql = "UPDATE pedido SET estado = ?";
+
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            $respuesta['error'] = "Error al preparar la consulta: " . $conn->error;
+            echo json_encode($respuesta);
+            exit;
         }
+
+        // Enlace de parámetros
+        $stmt->bind_param("i", $valorEstado);
+
+        if ($stmt->execute()) {
+            $respuesta['success'] = true;
+        } else {
+            $respuesta['error'] = "Error al ejecutar la consulta: " . $stmt->error;
+        }
+
+        $stmt->close();
+
     } else {
-        // Manejo de un estado desconocido o no válido
-        $respuesta['success'] = false;
-        $respuesta['error'] = 'Estado no válido';
-        echo json_encode($respuesta);
+        $respuesta['error'] = "Estado no válido";
     }
+} else {
+    $respuesta['error'] = "No se recibió el estado";
 }
+
+echo json_encode($respuesta);
+
+$conn->close();
 ?>

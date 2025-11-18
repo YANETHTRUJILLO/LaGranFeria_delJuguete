@@ -1,40 +1,36 @@
 <?php
 include('../conexion.php');
-$respuesta = new stdClass();
-function estado2texto($id){
-    switch ($id) {
-        case '1':
-            return 'En proceso de selección';
-            break;
-        case '2':
-            return 'Pago pendiente';
-            break;
-        case '3':
-            return 'En preparación';
-            break; 
-        case '4':
-            return 'En ruta de entrega';
-            break;
-        
-        case '5':
-            return 'Entregado con éxito';
-            break;
-        default:
-        
-            break;
-    }
 
+$respuesta = new stdClass();
+
+function estado2texto($id) {
+    switch ($id) {
+        case '1': return 'En proceso de selección';
+        case '2': return 'Pago pendiente';
+        case '3': return 'En preparación';
+        case '4': return 'En ruta de entrega';
+        case '5': return 'Entregado con éxito';
+        default:  return 'Estado desconocido';
+    }
 }
 
-
 $datos = array();
-$i = 0;
-$sql = "SELECT * ,ped.estado estadoped FROM pedido ped 
-        INNER JOIN producto pro ON ped.cdpro=pro.cdpro
-        WHERE ped.estado!=1";
+
+$sql = "SELECT ped.*, ped.estado AS estadoped, pro.nopro, pro.costpro, pro.rutimg
+        FROM pedido ped
+        INNER JOIN producto pro ON ped.cdpro = pro.cdpro
+        WHERE ped.estado != 1";
+
 $stmt = $conn->prepare($sql);
+
+if (!$stmt) {
+    die("Error al preparar consulta: " . $conn->error);
+}
+
 $stmt->execute();
-while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+$result = $stmt->get_result();
+
+while ($row = $result->fetch_assoc()) {
     $obj = new stdClass();
     $obj->cdped = $row['cdped'];
     $obj->cdpro = $row['cdpro'];
@@ -46,11 +42,15 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $obj->sub_total = $row['sub_total'];
     $obj->dirpedusu = utf8_encode($row['dirpedusu']);
     $obj->celusuped = $row['celusuped'];
-    $obj->estado =estado2texto($row['estadoped']);
-    $datos[$i] = $obj;
-    $i++;
+    $obj->estado = estado2texto($row['estadoped']);
+    
+    $datos[] = $obj;
 }
+
 $respuesta->datos = $datos;
-$conn = null;
+
+$stmt->close();
+$conn->close();
+
 header('Content-Type: application/json');
 echo json_encode($respuesta);
