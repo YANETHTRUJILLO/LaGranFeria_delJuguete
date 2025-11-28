@@ -1,13 +1,12 @@
 pipeline {
-    // Usamos 'any' para que Jenkins use cualquier ejecutor disponible,
-    // asumiendo que el único nodo (el maestro) tiene Docker, docker-compose y Git.
+
     agent any
 
     stages {
 
         stage('Limpiar Workspace') {
             steps {
-                echo 'Limpiando el workspace de Jenkins...'
+                echo 'Limpiando workspace...'
                 cleanWs()
             }
         }
@@ -15,81 +14,66 @@ pipeline {
         stage('Clonar código') {
             steps {
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
-
-                sh 'echo "Contenido del Workspace de Jenkins:"'
                 sh 'ls -al'
             }
         }
 
-        stage('Limpiar contenedores anteriores') {
+        stage('Docker Down') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh '''
-                        echo "Ejecutando limpieza previa de Docker..."
-                        docker-compose down --remove-orphans || true
-                        echo "Limpieza completada"
-                    '''
-                }
+                sh '''
+                    echo "Limpiando contenedores anteriores..."
+                    docker-compose down --remove-orphans || true
+                '''
             }
         }
 
         stage('Construir imágenes') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh '''
-                        echo "Construyendo imágenes..."
-                        docker-compose build --no-cache
-                    '''
-                }
+                sh '''
+                    echo "Construyendo imágenes..."
+                    docker-compose build --no-cache
+                '''
             }
         }
 
         stage('Instalar dependencias PHP') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh '''
-                        echo "Instalando dependencias con Composer..."
-                        docker-compose run --rm --user root tests composer install
-                    '''
-                }
+                sh '''
+                    echo "Instalando dependencias..."
+                    docker-compose run --rm --user root tests composer install
+                '''
             }
         }
 
-        stage('Ejecutar pruebas PHPUnit') {
+        stage('Ejecutar pruebas') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh '''
-                        echo "Ejecutando pruebas PHPUnit..."
-                        docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml
-                    '''
-                }
+                sh '''
+                    echo "Ejecutando PHPUnit..."
+                    docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml
+                '''
             }
         }
 
         stage('Subir cobertura a Codecov') {
             steps {
-                dir("${WORKSPACE}") {
-                    withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
-                        sh '''
-                            echo "Subiendo cobertura a Codecov..."
-                            bash <(curl -s https://codecov.io/bash) \
-                                -t $TOKEN \
-                                -f coverage.xml \
-                                -F php
-                        '''
-                    }
+                withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
+                    sh '''
+                        echo "Subiendo cobertura a Codecov..."
+                        bash <(curl -s https://codecov.io/bash) \
+                            -t $TOKEN \
+                            -f coverage.xml \
+                            -F php
+                    '''
                 }
             }
         }
 
         stage('Levantar aplicación') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh '''
-                        echo "Levantando aplicación final..."
-                        docker-compose up -d web
-                    '''
-                }
+                sh '''
+                    echo "Levantando aplicación..."
+                    docker-compose up -d web
+                '''
             }
         }
     }
