@@ -1,11 +1,10 @@
 pipeline {
-    // CAMBIO AQUÍ: Usamos 'any' para que Jenkins use cualquier ejecutor disponible,
+    // Usamos 'any' para que Jenkins use cualquier ejecutor disponible,
     // asumiendo que el único nodo (el maestro) tiene Docker, docker-compose y Git.
     agent any
 
     stages {
-        
-        // **NUEVA ETAPA DE LIMPIEZA**
+
         stage('Limpiar Workspace') {
             steps {
                 echo 'Limpiando el workspace de Jenkins...'
@@ -16,8 +15,7 @@ pipeline {
         stage('Clonar código') {
             steps {
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
-                
-                // *** COMANDO DE DIAGNÓSTICO para verificar si el código se clonó ***
+
                 sh 'echo "Contenido del Workspace de Jenkins:"'
                 sh 'ls -al'
             }
@@ -25,66 +23,73 @@ pipeline {
 
         stage('Limpiar contenedores anteriores') {
             steps {
-                sh '''
-                    echo "Ejecutando limpieza previa de Docker..."
-                    # Esto detiene y elimina servicios definidos en docker-compose
-                    docker-compose down --remove-orphans || true
-                    echo "Limpieza completada"
-                '''
+                dir("${WORKSPACE}") {
+                    sh '''
+                        echo "Ejecutando limpieza previa de Docker..."
+                        docker-compose down --remove-orphans || true
+                        echo "Limpieza completada"
+                    '''
+                }
             }
         }
 
         stage('Construir imágenes') {
             steps {
-                sh '''
-                    echo "Construyendo imágenes..."
-                    # --no-cache asegura que se use el Dockerfile actualizado
-                    docker-compose build --no-cache
-                '''
+                dir("${WORKSPACE}") {
+                    sh '''
+                        echo "Construyendo imágenes..."
+                        docker-compose build --no-cache
+                    '''
+                }
             }
         }
 
         stage('Instalar dependencias PHP') {
             steps {
-                sh '''
-                    echo "Instalando dependencias con Composer..."
-                    # *** CAMBIO CRÍTICO: Añadimos --user root para resolver problemas de permisos en volúmenes ***
-                    docker-compose run --rm --user root tests composer install
-                '''
+                dir("${WORKSPACE}") {
+                    sh '''
+                        echo "Instalando dependencias con Composer..."
+                        docker-compose run --rm --user root tests composer install
+                    '''
+                }
             }
         }
 
         stage('Ejecutar pruebas PHPUnit') {
             steps {
-                sh '''
-                    echo "Ejecutando pruebas PHPUnit..."
-                    docker-compose run --rm tests \
-                        vendor/bin/phpunit --coverage-clover=coverage.xml
-                '''
+                dir("${WORKSPACE}") {
+                    sh '''
+                        echo "Ejecutando pruebas PHPUnit..."
+                        docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml
+                    '''
+                }
             }
         }
 
         stage('Subir cobertura a Codecov') {
             steps {
-                withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
-                    sh '''
-                        echo "Subiendo cobertura a Codecov..."
-                        bash <(curl -s https://codecov.io/bash) \
-                            -t $TOKEN \
-                            -f coverage.xml \
-                            -F php
-                    '''
+                dir("${WORKSPACE}") {
+                    withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
+                        sh '''
+                            echo "Subiendo cobertura a Codecov..."
+                            bash <(curl -s https://codecov.io/bash) \
+                                -t $TOKEN \
+                                -f coverage.xml \
+                                -F php
+                        '''
+                    }
                 }
             }
         }
 
         stage('Levantar aplicación') {
             steps {
-                sh '''
-                    echo "Levantando aplicación final..."
-                    # Usamos 'up' para levantar el servicio 'web'
-                    docker-compose up -d web
-                '''
+                dir("${WORKSPACE}") {
+                    sh '''
+                        echo "Levantando aplicación final..."
+                        docker-compose up -d web
+                    '''
+                }
             }
         }
     }
