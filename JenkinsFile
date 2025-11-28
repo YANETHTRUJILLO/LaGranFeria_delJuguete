@@ -12,7 +12,7 @@ pipeline {
         stage('Limpiar contenedores anteriores') {
             steps {
                 sh '''
-                    echo "🧹 Ejecutando limpieza previa..."
+                    echo "Ejecutando limpieza previa..."
 
                     # Baja y elimina todos los servicios del docker-compose
                     docker-compose down --remove-orphans || true
@@ -44,7 +44,9 @@ pipeline {
             steps {
                 sh '''
                     echo "Ejecutando pruebas PHPUnit..."
-                    docker-compose run --rm tests
+                    # FIX: Usamos --entrypoint="" y sh -c para correr composer install ANTES de los tests
+                    # Esto asegura que la carpeta vendor exista y tenga el ejecutable de phpunit
+                    docker-compose run --rm --entrypoint="" tests sh -c "composer install --prefer-dist --no-progress && vendor/bin/phpunit --coverage-clover coverage.xml"
                 '''
             }
         }
