@@ -1,8 +1,7 @@
 pipeline {
-    // Definimos un agente que debe tener Docker, docker-compose y Git
-    agent {
-        label 'docker-enabled' // Asegúrate de que tu nodo Jenkins tiene esta etiqueta o usa 'any' si es el único nodo.
-    }
+    //Usamos 'any' para que Jenkins use cualquier ejecutor disponible,
+    // asumiendo que el único nodo (el maestro) tiene Docker, docker-compose y Git.
+    agent any
 
     stages {
         
