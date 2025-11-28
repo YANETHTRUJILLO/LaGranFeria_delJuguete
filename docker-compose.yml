@@ -1,6 +1,7 @@
 version: "3.8"
 
 services:
+
   web:
     build: .
     container_name: granferia_web
@@ -20,3 +21,13 @@ services:
       MYSQL_DATABASE: granferia
     ports:
       - "3307:3306"
+
+  tests:   
+    build: .
+    container_name: granferia_tests
+    command: vendor/bin/phpunit --coverage-clover=coverage.xml
+    volumes:
+      - .:/var/www/html
+    working_dir: /var/www/html
+    depends_on:
+      - db

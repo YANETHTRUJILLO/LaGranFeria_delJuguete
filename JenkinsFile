@@ -3,17 +3,36 @@ pipeline {
 
     stages {
 
-        stage('Clonar repositorio') {
+        stage('Clonar') {
             steps {
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
             }
         }
 
-        stage('Construir imagen Docker') {
+        stage('Construir imágenes') {
             steps {
                 sh 'docker-compose build'
             }
         }
+
+        stage('Ejecutar pruebas PHPUnit') {
+            steps {
+                sh 'docker-compose run --rm tests'
+            }
+        }
+
+        stage('Subir cobertura a Codecov') {
+    steps {
+        withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
+            sh '''
+                bash <(curl -s https://codecov.io/bash) \
+                -t $TOKEN \
+                -f coverage.xml \
+                -F php
+            '''
+        }
+    }
+}
 
         stage('Limpiar contenedores viejos') {
             steps {
@@ -24,16 +43,9 @@ pipeline {
             }
         }
 
-        stage('Levantar contenedores') {
+        stage('Levantar aplicación') {
             steps {
                 sh 'docker-compose up -d --force-recreate'
-            }
-        }
-
-        stage('Probar contenedores') {
-            steps {
-               // Aquí se pueden agregar pruebas o validaciones 
-                sh 'docker ps'
             }
         }
     }

@@ -1,0 +1,7 @@
+coverage:
+  precision: 2
+  round: down
+  status:
+    project: yes
+    patch: yes
+    comment: false
