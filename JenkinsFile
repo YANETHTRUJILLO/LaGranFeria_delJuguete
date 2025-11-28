@@ -43,10 +43,11 @@ pipeline {
         stage('Ejecutar pruebas PHPUnit') {
             steps {
                 sh '''
-                        echo "DEPURACIÓN: Ejecutando shell interactiva en tests..."
-                        # EJECUTAR ESTO DEBE LISTAR EL CONTENIDO DE /var/www/html
-                        docker-compose run --rm --entrypoint="" -w /var/www/html tests ls -la
-                    '''
+                    echo "Ejecutando pruebas PHPUnit..."
+                    # Usamos la imagen recién construida (con dependencias instaladas en el RUN composer install)
+                    # y le decimos que ejecute PHPUnit.
+                    docker-compose run --rm --entrypoint="" -w /var/www/html tests vendor/bin/phpunit --coverage-clover coverage.xml
+                '''
             }
         }
 
