@@ -17,44 +17,44 @@ pipeline {
             steps {
                 echo 'Construyendo imágenes sin caché...'
                 dir(pwd()) {
-                    // *** CORRECCIÓN CLAVE 1A: Forzar la construcción separada con --no-cache ***
                     sh 'docker-compose build --no-cache db tests web' 
                 }
                 echo 'Levantando servicios iniciales (DB y Tests)...'
                 dir(pwd()) {
-                    // *** CORRECCIÓN CLAVE 1B: Levanta los servicios ***
                     sh 'docker-compose up -d db tests'
                 }
+                echo 'Esperando 10 segundos para la inicialización completa de la base de datos...'
+                sh 'sleep 10'
             }
         }
 
         stage('Instalar Dependencias PHP') {
             steps {
-                echo 'Instalando dependencias de Composer dentro del contenedor de pruebas...'
+                echo '*** EJECUTANDO PRUEBA DE DIAGNÓSTICO DE VOLUMEN ***'
                 dir(pwd()) {
                     // DEBUG: Muestra los archivos en el directorio antes de ejecutar docker-compose.
                     sh 'ls -F' 
                     
-                    // *** CORRECCIÓN CRÍTICA DE SINCRONIZACIÓN ***
                     echo 'Forzando sincronización del volumen del contenedor tests...'
                     sh 'docker-compose stop tests'
                     sh 'docker-compose rm -f tests'
 
-                    // CORRECCIÓN DE PERMISOS (Ya estaba)
-                    sh 'docker-compose run --rm --user root tests chown -R www-data:www-data /var/www/html'
-
-                    // *** CORRECCIÓN FINAL: Forzar el working directory y ejecutar como root ***
-                    // Esto elimina cualquier duda de que composer.json no se encuentra, ya que forzamos la ruta.
-                    sh 'docker-compose run --rm --user root -w /var/www/html tests composer install --no-interaction --prefer-dist'
+                    // *** NUEVA PRUEBA: LISTAR ARCHIVOS DENTRO DEL CONTENEDOR ***
+                    // Si este comando no muestra composer.json, el problema es el montaje del volumen.
+                    echo 'Verificando contenido de /var/www/html DENTRO del contenedor tests:'
+                    sh 'docker-compose run --rm --user root -w /var/www/html tests ls -F' 
+                    
+                    // Nota: El comando original de Composer ha sido comentado para hacer la prueba.
+                    // sh 'docker-compose run --rm --user root -w /var/www/html tests composer install --no-interaction --prefer-dist'
                 }
             }
         }
 
+        // ... El resto de las etapas se mantienen sin cambios por ahora
         stage('Ejecutar Pruebas PHPUnit') {
             steps {
                 echo 'Ejecutando pruebas unitarias y de integración...'
                 dir(pwd()) {
-                    // Ejecutamos PHPUnit como el usuario www-data o el usuario por defecto (el chown ya resolvió permisos).
                     sh 'docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml'
                 }
             }
