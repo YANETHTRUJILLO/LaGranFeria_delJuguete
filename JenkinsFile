@@ -43,12 +43,10 @@ pipeline {
         stage('Ejecutar pruebas PHPUnit') {
             steps {
                 sh '''
-                    echo "Ejecutando pruebas PHPUnit..."
-                    # FIX: Usamos --entrypoint="" y sh -c para correr composer install ANTES de los tests
-                    # Esto asegura que la carpeta vendor exista y tenga el ejecutable de phpunit
-                    # FIX: Forzamos el directorio de trabajo (-w) a /var/www/html donde se espera encontrar composer.json
-                    docker-compose run --rm --entrypoint="" -w /var/www/html tests sh -c "composer install --prefer-dist --no-progress && vendor/bin/phpunit --coverage-clover coverage.xml"
-                '''
+                        echo "DEPURACIÓN: Ejecutando shell interactiva en tests..."
+                        # EJECUTAR ESTO DEBE LISTAR EL CONTENIDO DE /var/www/html
+                        docker-compose run --rm --entrypoint="" -w /var/www/html tests ls -la
+                    '''
             }
         }
 
