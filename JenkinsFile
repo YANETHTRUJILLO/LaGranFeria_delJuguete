@@ -20,25 +20,32 @@ pipeline {
         stage('Preparación de Entorno Docker') {
             steps {
                 echo 'Levantando, construyendo y esperando los servicios (DB y Tests)...'
-                // Construye imágenes, levanta los servicios 'db' y 'tests' en segundo plano (-d)
-                // y espera a que el healthcheck de la DB sea exitoso (--wait).
-                sh 'docker-compose up -d --build --wait db tests'
+                dir(pwd()) {
+                    // Construye imágenes, levanta los servicios 'db' y 'tests' en segundo plano (-d)
+                    // y espera a que el healthcheck de la DB sea exitoso (--wait).
+                    sh 'docker-compose up -d --build --wait db tests'
+                }
             }
         }
 
         stage('Instalar Dependencias PHP') {
             steps {
                 echo 'Instalando dependencias de Composer dentro del contenedor de pruebas...'
-                // El 'working_dir' en docker-compose.yml asegura que composer.json se encuentre en /var/www/html.
-                sh 'docker-compose run --rm tests composer install --no-interaction --prefer-dist'
+                dir(pwd()) {
+                    // Se añade --user root para evitar problemas de permisos al crear la carpeta vendor
+                    // El 'working_dir' en docker-compose.yml asegura que composer.json se encuentre en /var/www/html.
+                    sh 'docker-compose run --rm --user root tests composer install --no-interaction --prefer-dist'
+                }
             }
         }
 
         stage('Ejecutar Pruebas PHPUnit') {
             steps {
                 echo 'Ejecutando pruebas unitarias y de integración...'
-                // Ejecuta PHPUnit. Las variables de entorno de la DB se toman del phpunit.xml.
-                sh 'docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml'
+                dir(pwd()) {
+                    // Ejecuta PHPUnit. Las variables de entorno de la DB se toman del phpunit.xml.
+                    sh 'docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml'
+                }
             }
         }
 
@@ -64,8 +71,10 @@ pipeline {
         stage('Despliegue (Levantar aplicación WEB)') {
             steps {
                 echo 'Levantando servicio WEB para el despliegue...'
-                // Se asegura que el servicio 'web' esté levantado (asumiendo que tiene la configuración de servidor web).
-                sh 'docker-compose up -d web'
+                dir(pwd()) {
+                    // Se asegura que el servicio 'web' esté levantado (asumiendo que tiene la configuración de servidor web).
+                    sh 'docker-compose up -d web'
+                }
             }
         }
     }
@@ -73,8 +82,10 @@ pipeline {
     post {
         always {
             echo 'Limpiando servicios de prueba (tests y db)...'
-            // Detiene y elimina los contenedores y volúmenes sin nombre (incluyendo la DB de prueba).
-            sh 'docker-compose down -v --remove-orphans'
+            dir(pwd()) {
+                // Detiene y elimina los contenedores y volúmenes sin nombre (incluyendo la DB de prueba).
+                sh 'docker-compose down -v --remove-orphans'
+            }
         }
     }
 }
