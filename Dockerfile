@@ -19,6 +19,8 @@ RUN pecl install xdebug \
 
 # 2. Configuramos Xdebug para que funcione en modo 'coverage'. 
 #    Esto es esencial para PHP 8+ y genera el reporte.
+# Nota: La forma más común de configurarlo es con un archivo .ini, pero la variable de entorno
+# funciona si la imagen base lo soporta. Dejamos la variable de entorno por ahora.
 ENV XDEBUG_MODE=coverage
 
 # --- FIN DE CAMBIOS NECESARIOS ---
@@ -29,8 +31,9 @@ COPY . /var/www/html/
 # Definimos la carpeta de trabajo dentro del contenedor
 WORKDIR /var/www/html
 
-# Ejecutamos "composer install" para instalar todas las dependencias
-RUN composer install
+# Ejecutamos "composer install" para instalar TODAS las dependencias (incluyendo las de desarrollo para PHPUnit)
+# Esto DEBE funcionar ya que el COPY . /var/www/html/ está justo arriba
+RUN composer install --no-interaction --optimize-autoloader
 
 # Cambiamos los permisos de la carpeta del proyecto para que Apache (www-data)
 # pueda leer y ejecutar correctamente los archivos.
