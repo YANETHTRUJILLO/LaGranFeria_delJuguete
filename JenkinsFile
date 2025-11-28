@@ -36,18 +36,16 @@ pipeline {
                     sh 'ls -F' 
                     
                     // *** CORRECCIÓN CRÍTICA DE SINCRONIZACIÓN ***
-                    // Detenemos y removemos el contenedor 'tests' para forzar a docker-compose run a crear un 
-                    // contenedor nuevo con el volumen de Jenkins actualizado y sincronizado.
                     echo 'Forzando sincronización del volumen del contenedor tests...'
                     sh 'docker-compose stop tests'
                     sh 'docker-compose rm -f tests'
 
-                    // CORRECCIÓN CLAVE 2: CHOWN (Permisos de escritura)
-                    // Ejecutamos el chown para asegurar permisos en el nuevo contenedor.
+                    // CORRECCIÓN DE PERMISOS (Ya estaba)
                     sh 'docker-compose run --rm --user root tests chown -R www-data:www-data /var/www/html'
 
-                    // Ejecutamos Composer como root.
-                    sh 'docker-compose run --rm --user root tests composer install --no-interaction --prefer-dist'
+                    // *** CORRECCIÓN FINAL: Forzar el working directory y ejecutar como root ***
+                    // Esto elimina cualquier duda de que composer.json no se encuentra, ya que forzamos la ruta.
+                    sh 'docker-compose run --rm --user root -w /var/www/html tests composer install --no-interaction --prefer-dist'
                 }
             }
         }
@@ -56,6 +54,7 @@ pipeline {
             steps {
                 echo 'Ejecutando pruebas unitarias y de integración...'
                 dir(pwd()) {
+                    // Ejecutamos PHPUnit como el usuario www-data o el usuario por defecto (el chown ya resolvió permisos).
                     sh 'docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml'
                 }
             }
@@ -96,5 +95,5 @@ pipeline {
                 sh 'docker-compose down -v --remove-orphans'
             }
         }
-    }
-}
+    } 
+} 
