@@ -1,7 +1,18 @@
 pipeline {
-    agent any
+    // Definimos un agente que debe tener Docker, docker-compose y Git
+    agent {
+        label 'docker-enabled' // Asegúrate de que tu nodo Jenkins tiene esta etiqueta o usa 'any' si es el único nodo.
+    }
 
     stages {
+        
+        // **NUEVA ETAPA DE LIMPIEZA**
+        stage('Limpiar Workspace') {
+            steps {
+                echo 'Limpiando el workspace de Jenkins...'
+                cleanWs()
+            }
+        }
 
         stage('Clonar código') {
             steps {
@@ -12,14 +23,9 @@ pipeline {
         stage('Limpiar contenedores anteriores') {
             steps {
                 sh '''
-                    echo "Ejecutando limpieza previa..."
-
+                    echo "Ejecutando limpieza previa de Docker..."
+                    # Esto detiene y elimina servicios definidos en docker-compose
                     docker-compose down --remove-orphans || true
-                    
-                    # Eliminar contenedores previos si existen
-                    docker stop granferia_db granferia_web granferia_tests || true
-                    docker rm granferia_db granferia_web granferia_tests || true
-
                     echo "Limpieza completada"
                 '''
             }
@@ -29,6 +35,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Construyendo imágenes..."
+                    # --no-cache asegura que se use el Dockerfile actualizado
                     docker-compose build --no-cache
                 '''
             }
@@ -38,6 +45,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Instalando dependencias con Composer..."
+                    # Este paso falla si no hay composer.json, la limpieza previa debería resolverlo
                     docker-compose run --rm tests composer install
                 '''
             }
@@ -71,6 +79,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Levantando aplicación final..."
+                    # Usamos 'up' para levantar el servicio 'web'
                     docker-compose up -d web
                 '''
             }
@@ -79,7 +88,7 @@ pipeline {
 
     post {
         always {
-            echo 'Pipeline finalizado correctamente.'
+            echo 'Pipeline finalizado.'
         }
     }
 }
