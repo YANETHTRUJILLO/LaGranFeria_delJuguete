@@ -6,21 +6,37 @@ services:
     image: mysql:8
     container_name: granferia_db
     environment:
+      # Credenciales de la Base de Datos para el entorno de pruebas
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: granferia
+      MYSQL_USER: user_test # Usuario dedicado para las pruebas
+      MYSQL_PASSWORD: password_test
     ports:
       - "3307:3306"
     volumes:
       - dbdata:/var/lib/mysql
+    healthcheck: # ¡CLAVE! Asegura que MySQL esté listo antes de que los tests intenten conectarse
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uuser_test", "-ppassword_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   tests:
     build: .
     container_name: granferia_tests
+    # Esto asegura que el código y composer.json se encuentren en el directorio de trabajo
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
+    environment: # ¡CLAVE! Configuraciones para que PHPUnit pueda conectarse a la DB
+      DB_HOST: db # Usa el nombre del servicio como hostname (resuelve internamente en Docker)
+      DB_NAME: granferia
+      DB_USER: user_test
+      DB_PASSWORD: password_test
+      # Otras variables de entorno que tu aplicación necesite
     depends_on:
-      - db
+      db:
+        condition: service_healthy # Espera hasta que la DB pase el healthcheck
 
   web:
     build: .

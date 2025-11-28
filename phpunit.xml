@@ -5,20 +5,38 @@
     cacheDirectory=".phpunit.cache"
 >
 
-    <!-- Dónde están tus clases -->
+    <!--
+    CONFIGURACIÓN DE VARIABLES DE ENTORNO
+    Esta sección es CRUCIAL para las pruebas de integración. Permite que PHPUnit y tu código
+    accedan a las credenciales de la base de datos que están definidas en el servicio 'db'
+    del archivo docker-compose.yml.
+    -->
+    <php>
+        <!--
+        DB_HOST debe ser 'db' ya que es el nombre del servicio MySQL dentro de la red Docker.
+        Las credenciales deben coincidir con las definidas para el servicio 'db' y 'tests'.
+        -->
+        <env name="DB_HOST" value="db"/>
+        <env name="DB_DATABASE" value="granferia"/>
+        <env name="DB_USERNAME" value="user_test"/>
+        <env name="DB_PASSWORD" value="password_test"/>
+    </php>
+    
     <testsuites>
         <testsuite name="Test Suite">
+            <!-- Directorio donde se encuentran tus archivos de prueba (basado en tu estructura src/test/) -->
             <directory>src/test</directory>
         </testsuite>
     </testsuites>
 
-    <!-- Configuración de cobertura -->
+    <!-- Configuración de cobertura (Code Coverage) -->
     <coverage cacheDirectory=".phpunit.cache/coverage">
         <include>
+            <!-- Archivos de la aplicación en 'src' que deben ser analizados para la cobertura -->
             <directory suffix=".php">src</directory>
         </include>
         <report>
-            <!-- Archivo que usará Codecov o Jenkins -->
+            <!-- Genera el reporte en formato Clover, requerido por Codecov -->
             <clover outputFile="coverage.xml"/>
         </report>
     </coverage>

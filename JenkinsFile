@@ -1,87 +1,80 @@
 pipeline {
 
+    // Ejecuta el pipeline en cualquier agente disponible
     agent any
 
     stages {
 
-        stage('Limpiar Workspace') {
+        stage('Limpieza e Inicialización') {
             steps {
+                // 1. Limpia el workspace antes de la extracción.
                 cleanWs()
-            }
-        }
+                echo 'Workspace limpio.'
 
-        stage('Clonar código') {
-            steps {
+                // 2. Clona el código en el directorio raíz del workspace.
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
                 sh 'ls -al'
             }
         }
 
-        stage('Docker Down') {
+        stage('Preparación de Entorno Docker') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh 'docker-compose down --remove-orphans || true'
-                }
+                echo 'Levantando, construyendo y esperando los servicios (DB y Tests)...'
+                // Construye imágenes, levanta los servicios 'db' y 'tests' en segundo plano (-d)
+                // y espera a que el healthcheck de la DB sea exitoso (--wait).
+                sh 'docker-compose up -d --build --wait db tests'
             }
         }
 
-        stage('Construir imágenes') {
+        stage('Instalar Dependencias PHP') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh 'docker-compose build --no-cache'
-                }
+                echo 'Instalando dependencias de Composer dentro del contenedor de pruebas...'
+                // El 'working_dir' en docker-compose.yml asegura que composer.json se encuentre en /var/www/html.
+                sh 'docker-compose run --rm tests composer install --no-interaction --prefer-dist'
             }
         }
 
-        stage('Instalar dependencias PHP') {
+        stage('Ejecutar Pruebas PHPUnit') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh '''
-                        echo "Instalando dependencias..."
-                        docker-compose run --rm --user root tests composer install
-                    '''
-                }
-            }
-        }
-
-        stage('Ejecutar pruebas') {
-            steps {
-                dir("${WORKSPACE}") {
-                    sh '''
-                        docker-compose run --rm tests vendor/bin/phpunit \
-                        --coverage-clover=coverage.xml
-                    '''
-                }
+                echo 'Ejecutando pruebas unitarias y de integración...'
+                // Ejecuta PHPUnit. Las variables de entorno de la DB se toman del phpunit.xml.
+                sh 'docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml'
             }
         }
 
         stage('Subir cobertura a Codecov') {
             steps {
-                dir("${WORKSPACE}") {
-                    withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
-                        sh '''
+                echo 'Subiendo reporte de cobertura a Codecov...'
+                // Sube el reporte de cobertura si existe.
+                withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
+                    sh '''
+                        if [ -f coverage.xml ]; then
                             bash <(curl -s https://codecov.io/bash) \
                                 -t $TOKEN \
                                 -f coverage.xml \
                                 -F php
-                        '''
-                    }
+                        else
+                            echo "ADVERTENCIA: No se encontró coverage.xml. Omitiendo subida a Codecov."
+                        fi
+                    '''
                 }
             }
         }
-
-        stage('Levantar aplicación') {
+        
+        stage('Despliegue (Levantar aplicación WEB)') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh 'docker-compose up -d web'
-                }
+                echo 'Levantando servicio WEB para el despliegue...'
+                // Se asegura que el servicio 'web' esté levantado (asumiendo que tiene la configuración de servidor web).
+                sh 'docker-compose up -d web'
             }
         }
     }
 
     post {
         always {
-            echo 'Pipeline finalizado.'
+            echo 'Limpiando servicios de prueba (tests y db)...'
+            // Detiene y elimina los contenedores y volúmenes sin nombre (incluyendo la DB de prueba).
+            sh 'docker-compose down -v --remove-orphans'
         }
     }
 }
