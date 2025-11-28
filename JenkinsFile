@@ -18,14 +18,11 @@ pipeline {
                 echo 'Construyendo imágenes sin caché...'
                 dir(pwd()) {
                     // *** CORRECCIÓN CLAVE 1A: Forzar la construcción separada con --no-cache ***
-                    // 'docker-compose build' soporta --no-cache incluso en versiones antiguas.
                     sh 'docker-compose build --no-cache db tests web' 
                 }
-                echo 'Levantando y esperando los servicios (DB y Tests)...'
+                echo 'Levantando servicios iniciales (DB y Tests)...'
                 dir(pwd()) {
-                    // *** CORRECCIÓN CLAVE 1B: Usar el comando up sin flags no soportados ***
-                    // Esto evita el error "unknown flag: --no-cache" y "--wait".
-                    // Confiamos en el healthcheck del docker-compose.yml para esperar la DB.
+                    // *** CORRECCIÓN CLAVE 1B: Levanta los servicios ***
                     sh 'docker-compose up -d db tests'
                 }
             }
@@ -35,14 +32,21 @@ pipeline {
             steps {
                 echo 'Instalando dependencias de Composer dentro del contenedor de pruebas...'
                 dir(pwd()) {
-                    // Nuevo comando para DEBUG: Muestra los archivos en el directorio antes de ejecutar docker-compose.
+                    // DEBUG: Muestra los archivos en el directorio antes de ejecutar docker-compose.
                     sh 'ls -F' 
                     
+                    // *** CORRECCIÓN CRÍTICA DE SINCRONIZACIÓN ***
+                    // Detenemos y removemos el contenedor 'tests' para forzar a docker-compose run a crear un 
+                    // contenedor nuevo con el volumen de Jenkins actualizado y sincronizado.
+                    echo 'Forzando sincronización del volumen del contenedor tests...'
+                    sh 'docker-compose stop tests'
+                    sh 'docker-compose rm -f tests'
+
                     // CORRECCIÓN CLAVE 2: CHOWN (Permisos de escritura)
-                    // Aseguramos que el usuario www-data (Apache) o root tenga permisos sobre la carpeta montada.
+                    // Ejecutamos el chown para asegurar permisos en el nuevo contenedor.
                     sh 'docker-compose run --rm --user root tests chown -R www-data:www-data /var/www/html'
 
-                    // Ejecutamos Composer como root para evitar conflictos de permisos de Jenkins/Docker.
+                    // Ejecutamos Composer como root.
                     sh 'docker-compose run --rm --user root tests composer install --no-interaction --prefer-dist'
                 }
             }
@@ -92,5 +96,4 @@ pipeline {
                 sh 'docker-compose down -v --remove-orphans'
             }
         }
-    }
-}
+    
