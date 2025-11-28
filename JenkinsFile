@@ -3,56 +3,79 @@ pipeline {
 
     stages {
 
-        stage('Clonar') {
+        stage('Clonar código') {
             steps {
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
             }
         }
 
+        stage('Limpiar contenedores anteriores') {
+            steps {
+                sh '''
+                    echo "🧹 Ejecutando limpieza previa..."
+
+                    # Baja y elimina todos los servicios del docker-compose
+                    docker-compose down --remove-orphans || true
+
+                    # Elimina posibles contenedores huérfanos con container_name fijo
+                    docker stop granferia_db || true
+                    docker stop granferia_web || true
+                    docker stop granferia_tests || true
+
+                    docker rm granferia_db || true
+                    docker rm granferia_web || true
+                    docker rm granferia_tests || true
+
+                    echo "Limpieza completada"
+                '''
+            }
+        }
+
         stage('Construir imágenes') {
             steps {
-                sh 'docker-compose build'
+                sh '''
+                    echo "Construyendo imágenes..."
+                    docker-compose build --no-cache
+                '''
             }
         }
 
         stage('Ejecutar pruebas PHPUnit') {
             steps {
-                sh 'docker-compose run --rm tests'
+                sh '''
+                    echo "Ejecutando pruebas PHPUnit..."
+                    docker-compose run --rm tests
+                '''
             }
         }
 
         stage('Subir cobertura a Codecov') {
-    steps {
-        withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
-            sh '''
-                bash <(curl -s https://codecov.io/bash) \
-                -t $TOKEN \
-                -f coverage.xml \
-                -F php
-            '''
-        }
-    }
-}
-
-        stage('Limpiar contenedores viejos') {
             steps {
-                sh '''
-                    docker rm -f granferia_db || true
-                    docker rm -f granferia_web || true
-                '''
+                withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
+                    sh '''
+                        echo "Subiendo cobertura a Codecov..."
+                        bash <(curl -s https://codecov.io/bash) \
+                            -t $TOKEN \
+                            -f coverage.xml \
+                            -F php
+                    '''
+                }
             }
         }
 
         stage('Levantar aplicación') {
             steps {
-                sh 'docker-compose up -d --force-recreate'
+                sh '''
+                    echo "Levantando aplicación..."
+                    docker-compose up -d --force-recreate
+                '''
             }
         }
     }
 
     post {
         always {
-            echo 'Pipeline finalizado.'
+            echo 'Pipeline finalizado correctamente.'
         }
     }
 }
