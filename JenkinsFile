@@ -1,17 +1,13 @@
 pipeline {
 
-    // Ejecuta el pipeline en cualquier agente disponible
     agent any
 
     stages {
 
         stage('Limpieza e Inicialización') {
             steps {
-                // 1. Limpia el workspace antes de la extracción.
                 cleanWs()
                 echo 'Workspace limpio.'
-
-                // 2. Clona el código en el directorio raíz del workspace.
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
                 sh 'ls -al'
             }
@@ -21,9 +17,10 @@ pipeline {
             steps {
                 echo 'Levantando, construyendo y esperando los servicios (DB y Tests)...'
                 dir(pwd()) {
-                    // Construye imágenes, levanta los servicios 'db' y 'tests' en segundo plano (-d)
-                    // y espera a que el healthcheck de la DB sea exitoso (--wait).
-                    sh 'docker-compose up -d --build --wait db tests'
+                    // *** CORRECCIÓN CLAVE 1: --no-cache ***
+                    // Esto fuerza a Docker a ignorar la caché y usar el Dockerfile actualizado
+                    // (el que ya no tiene la línea COPY).
+                    sh 'docker-compose up -d --build --no-cache --wait db tests'
                 }
             }
         }
@@ -32,8 +29,13 @@ pipeline {
             steps {
                 echo 'Instalando dependencias de Composer dentro del contenedor de pruebas...'
                 dir(pwd()) {
-                    // Se añade --user root para evitar problemas de permisos al crear la carpeta vendor
-                    // El 'working_dir' en docker-compose.yml asegura que composer.json se encuentre en /var/www/html.
+                    
+                    // CORRECCIÓN CLAVE 2: CHOWN (Permisos de escritura)
+                    // Aseguramos que el usuario www-data (Apache) o root tenga permisos sobre la carpeta montada
+                    // para que Composer pueda crear la carpeta 'vendor'.
+                    sh 'docker-compose run --rm --user root tests chown -R www-data:www-data /var/www/html'
+
+                    // Ejecutamos Composer como root para evitar conflictos de permisos de Jenkins/Docker.
                     sh 'docker-compose run --rm --user root tests composer install --no-interaction --prefer-dist'
                 }
             }
@@ -43,7 +45,6 @@ pipeline {
             steps {
                 echo 'Ejecutando pruebas unitarias y de integración...'
                 dir(pwd()) {
-                    // Ejecuta PHPUnit. Las variables de entorno de la DB se toman del phpunit.xml.
                     sh 'docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml'
                 }
             }
@@ -52,7 +53,6 @@ pipeline {
         stage('Subir cobertura a Codecov') {
             steps {
                 echo 'Subiendo reporte de cobertura a Codecov...'
-                // Sube el reporte de cobertura si existe.
                 withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
                     sh '''
                         if [ -f coverage.xml ]; then
@@ -72,7 +72,6 @@ pipeline {
             steps {
                 echo 'Levantando servicio WEB para el despliegue...'
                 dir(pwd()) {
-                    // Se asegura que el servicio 'web' esté levantado (asumiendo que tiene la configuración de servidor web).
                     sh 'docker-compose up -d web'
                 }
             }
@@ -83,7 +82,6 @@ pipeline {
         always {
             echo 'Limpiando servicios de prueba (tests y db)...'
             dir(pwd()) {
-                // Detiene y elimina los contenedores y volúmenes sin nombre (incluyendo la DB de prueba).
                 sh 'docker-compose down -v --remove-orphans'
             }
         }
