@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
 
   db:
@@ -16,7 +18,7 @@ services:
     container_name: granferia_tests
     working_dir: /var/www/html
     volumes:
-      - /var/jenkins_home/workspace/granferia-pipeline:/var/www/html
+      - ${WORKSPACE}:/var/www/html
     depends_on:
       - db
 
@@ -25,7 +27,7 @@ services:
     container_name: granferia_web
     working_dir: /var/www/html
     volumes:
-      - /var/jenkins_home/workspace/granferia-pipeline:/var/www/html
+      - ${WORKSPACE}:/var/www/html
     ports:
       - "8080:80"
     depends_on:

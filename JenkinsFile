@@ -6,7 +6,6 @@ pipeline {
 
         stage('Limpiar Workspace') {
             steps {
-                echo 'Limpiando workspace...'
                 cleanWs()
             }
         }
@@ -20,60 +19,62 @@ pipeline {
 
         stage('Docker Down') {
             steps {
-                sh '''
-                    echo "Limpiando contenedores anteriores..."
-                    docker-compose down --remove-orphans || true
-                '''
+                dir("${WORKSPACE}") {
+                    sh 'docker-compose down --remove-orphans || true'
+                }
             }
         }
 
         stage('Construir imágenes') {
             steps {
-                sh '''
-                    echo "Construyendo imágenes..."
-                    docker-compose build --no-cache
-                '''
+                dir("${WORKSPACE}") {
+                    sh 'docker-compose build --no-cache'
+                }
             }
         }
 
         stage('Instalar dependencias PHP') {
             steps {
-                sh '''
-                    echo "Instalando dependencias..."
-                    docker-compose run --rm --user root tests composer install
-                '''
+                dir("${WORKSPACE}") {
+                    sh '''
+                        echo "Instalando dependencias..."
+                        docker-compose run --rm --user root tests composer install
+                    '''
+                }
             }
         }
 
         stage('Ejecutar pruebas') {
             steps {
-                sh '''
-                    echo "Ejecutando PHPUnit..."
-                    docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml
-                '''
+                dir("${WORKSPACE}") {
+                    sh '''
+                        docker-compose run --rm tests vendor/bin/phpunit \
+                        --coverage-clover=coverage.xml
+                    '''
+                }
             }
         }
 
         stage('Subir cobertura a Codecov') {
             steps {
-                withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
-                    sh '''
-                        echo "Subiendo cobertura a Codecov..."
-                        bash <(curl -s https://codecov.io/bash) \
-                            -t $TOKEN \
-                            -f coverage.xml \
-                            -F php
-                    '''
+                dir("${WORKSPACE}") {
+                    withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
+                        sh '''
+                            bash <(curl -s https://codecov.io/bash) \
+                                -t $TOKEN \
+                                -f coverage.xml \
+                                -F php
+                        '''
+                    }
                 }
             }
         }
 
         stage('Levantar aplicación') {
             steps {
-                sh '''
-                    echo "Levantando aplicación..."
-                    docker-compose up -d web
-                '''
+                dir("${WORKSPACE}") {
+                    sh 'docker-compose up -d web'
+                }
             }
         }
     }
