@@ -5,7 +5,6 @@ pipeline {
 
         stage('Clonar código') {
             steps {
-                // Asegúrate de que esta URL y rama sean correctas
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
             }
         }
@@ -15,21 +14,12 @@ pipeline {
                 sh '''
                     echo "Ejecutando limpieza previa..."
 
-                    # Baja y elimina todos los servicios del docker-compose
                     docker-compose down --remove-orphans || true
-                    
-                    # *** IMPORTANTE: Eliminamos la imagen de tests para forzar la reconstrucción total ***
-                    # Esto asegura que el nuevo Dockerfile (con composer install) se use.
+
                     docker rmi $(docker images -q | grep granferia_tests) || true
 
-                    # Elimina posibles contenedores huérfanos con container_name fijo
-                    docker stop granferia_db || true
-                    docker stop granferia_web || true
-                    docker stop granferia_tests || true
-
-                    docker rm granferia_db || true
-                    docker rm granferia_web || true
-                    docker rm granferia_tests || true
+                    docker stop granferia_db granferia_web granferia_tests || true
+                    docker rm granferia_db granferia_web granferia_tests || true
 
                     echo "Limpieza completada"
                 '''
@@ -40,9 +30,17 @@ pipeline {
             steps {
                 sh '''
                     echo "Construyendo imágenes..."
-                    # Usamos 'up' con --build y --force-recreate para ser agresivos y asegurar
-                    # que el nuevo Dockerfile se ejecute y se cree la carpeta 'vendor'.
                     docker-compose up -d --build --force-recreate
+                '''
+            }
+        }
+
+        stage('Instalar dependencias PHP') {
+            steps {
+                sh '''
+                    echo "Instalando dependencias con Composer..."
+
+                    docker-compose run --rm tests composer install
                 '''
             }
         }
@@ -51,8 +49,9 @@ pipeline {
             steps {
                 sh '''
                     echo "Ejecutando pruebas PHPUnit..."
-                    # Este comando FINAL asume que vendor/bin/phpunit YA existe dentro de la imagen.
-                    docker-compose run --rm --entrypoint="" -w /var/www/html tests vendor/bin/phpunit --coverage-clover coverage.xml
+
+                    docker-compose run --rm --entrypoint="" -w /var/www/html tests \
+                        vendor/bin/phpunit --coverage-clover=coverage.xml
                 '''
             }
         }
@@ -62,9 +61,6 @@ pipeline {
                 withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
                     sh '''
                         echo "Subiendo cobertura a Codecov..."
-                        # Ejecuta el script de Codecov.
-                        # NOTA: Si este paso falla por no encontrar 'coverage.xml', necesitaremos un 'docker cp' antes.
-                        
                         bash <(curl -s https://codecov.io/bash) \
                             -t $TOKEN \
                             -f coverage.xml \

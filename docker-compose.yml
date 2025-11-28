@@ -1,33 +1,38 @@
-version: "3.8"
+version: '3.8'
 
 services:
 
-  web:
-    build: .
-    container_name: granferia_web
-    ports:
-      - "8080:80"
-    volumes:
-      - .:/var/www/html
-    depends_on:
-      - db
-
   db:
-    image: mysql:5.7
+    image: mysql:8
     container_name: granferia_db
-    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: granferia
     ports:
       - "3307:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
 
-  tests:   
+  tests:
     build: .
     container_name: granferia_tests
-    command: vendor/bin/phpunit --coverage-clover=coverage.xml
+    working_dir: /var/www/html
+    command: ["tail", "-f", "/dev/null"]   # Evita que el contenedor se cierre
     volumes:
       - .:/var/www/html
-    working_dir: /var/www/html
     depends_on:
       - db
+
+  web:
+    build: .
+    container_name: granferia_web
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+
+volumes:
+  dbdata:
