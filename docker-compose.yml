@@ -17,7 +17,7 @@ services:
     build: .
     container_name: granferia_tests
     working_dir: /var/www/html
-    command: ["tail", "-f", "/dev/null"]   # Evita que el contenedor se cierre
+    entrypoint: [ "tail", "-f", "/dev/null" ]   # Mantiene contenedor vivo
     volumes:
       - .:/var/www/html
     depends_on:

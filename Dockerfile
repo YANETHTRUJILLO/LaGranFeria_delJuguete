@@ -1,27 +1,27 @@
-# Usamos la imagen oficial de PHP 8.2 con Apache
+# Imagen oficial de PHP 8.2 con Apache
 FROM php:8.2-apache
 
-# Instalamos herramientas necesarias
+# Instalar herramientas necesarias
 RUN apt-get update && apt-get install -y unzip git zip
 
-# Instalamos Composer
+# Instalar Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Instalamos extensiones para MySQL
+# Instalar extensiones MySQL
 RUN docker-php-ext-install mysqli pdo pdo_mysql
 
-# Instalamos Xdebug para cobertura
+# Instalar Xdebug para cobertura
 RUN pecl install xdebug \
     && docker-php-ext-enable xdebug
 
-# Activamos modo cobertura
+# Activar modo cobertura
 ENV XDEBUG_MODE=coverage
 
 # Directorio de trabajo
 WORKDIR /var/www/html
 
-# Copiamos solo el archivo de configuración de Apache (si lo tienes)
-# COPY apache.conf /etc/apache2/sites-available/000-default.conf
+# Copiar proyecto (tu Jenkinsfile usa volumen, así que aquí no se sobreescribe)
+COPY . /var/www/html/
 
-# Exponemos puerto 80
+# Exponer puerto Apache
 EXPOSE 80

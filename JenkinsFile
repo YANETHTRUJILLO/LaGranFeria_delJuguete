@@ -15,9 +15,8 @@ pipeline {
                     echo "Ejecutando limpieza previa..."
 
                     docker-compose down --remove-orphans || true
-
-                    docker rmi $(docker images -q | grep granferia_tests) || true
-
+                    
+                    # Eliminar contenedores previos si existen
                     docker stop granferia_db granferia_web granferia_tests || true
                     docker rm granferia_db granferia_web granferia_tests || true
 
@@ -30,7 +29,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Construyendo imágenes..."
-                    docker-compose up -d --build --force-recreate
+                    docker-compose build --no-cache
                 '''
             }
         }
@@ -39,7 +38,6 @@ pipeline {
             steps {
                 sh '''
                     echo "Instalando dependencias con Composer..."
-
                     docker-compose run --rm tests composer install
                 '''
             }
@@ -49,8 +47,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Ejecutando pruebas PHPUnit..."
-
-                    docker-compose run --rm --entrypoint="" -w /var/www/html tests \
+                    docker-compose run --rm tests \
                         vendor/bin/phpunit --coverage-clover=coverage.xml
                 '''
             }
@@ -73,8 +70,8 @@ pipeline {
         stage('Levantar aplicación') {
             steps {
                 sh '''
-                    echo "Levantando aplicación..."
-                    docker-compose up -d --force-recreate
+                    echo "Levantando aplicación final..."
+                    docker-compose up -d web
                 '''
             }
         }
