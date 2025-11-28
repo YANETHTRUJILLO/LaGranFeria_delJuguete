@@ -8,6 +8,7 @@ pipeline {
             steps {
                 cleanWs()
                 echo 'Workspace limpio.'
+                // Clonar la última versión del código
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
                 sh 'ls -al'
             }
@@ -17,12 +18,15 @@ pipeline {
             steps {
                 echo 'Construyendo imágenes sin caché...'
                 dir(pwd()) {
+                    // Construye las imágenes Docker
                     sh 'docker-compose build --no-cache db tests web' 
                 }
                 echo 'Levantando servicios iniciales (DB y Tests)...'
                 dir(pwd()) {
+                    // Levanta la DB y el contenedor de Tests
                     sh 'docker-compose up -d db tests'
                 }
+                // Espera crucial para que la DB se inicie completamente
                 echo 'Esperando 10 segundos para la inicialización completa de la base de datos...'
                 sh 'sleep 10'
             }
@@ -30,31 +34,32 @@ pipeline {
 
         stage('Instalar Dependencias PHP') {
             steps {
-                echo '*** EJECUTANDO PRUEBA DE DIAGNÓSTICO DE VOLUMEN ***'
+                echo 'Instalando dependencias de Composer dentro del contenedor de pruebas...'
                 dir(pwd()) {
-                    // DEBUG: Muestra los archivos en el directorio antes de ejecutar docker-compose.
-                    sh 'ls -F' 
-                    
-                    echo 'Forzando sincronización del volumen del contenedor tests...'
+                    // *** SOLUCIÓN 1: Sincronización Forzada de Volumen ***
+                    // Detener y remover el contenedor para asegurar un montaje limpio del volumen.
+                    echo 'Forzando sincronización del volumen: deteniendo y recreando el contenedor tests...'
                     sh 'docker-compose stop tests'
                     sh 'docker-compose rm -f tests'
 
-                    // *** NUEVA PRUEBA: LISTAR ARCHIVOS DENTRO DEL CONTENEDOR ***
-                    // Si este comando no muestra composer.json, el problema es el montaje del volumen.
-                    echo 'Verificando contenido de /var/www/html DENTRO del contenedor tests:'
-                    sh 'docker-compose run --rm --user root -w /var/www/html tests ls -F' 
-                    
-                    // Nota: El comando original de Composer ha sido comentado para hacer la prueba.
-                    // sh 'docker-compose run --rm --user root -w /var/www/html tests composer install --no-interaction --prefer-dist'
+                    // *** SOLUCIÓN 2: Corrección de Permisos (CHOWN) ***
+                    // Esto es VITAL para resolver el error de 'composer.json' no encontrado o permisos.
+                    echo 'Asegurando permisos de escritura para www-data en /var/www/html...'
+                    sh 'docker-compose run --rm --user root tests chown -R www-data:www-data /var/www/html'
+
+                    // *** SOLUCIÓN 3: Ejecución de Composer (Definitiva) ***
+                    // Ejecuta Composer como root para evitar problemas al crear la carpeta vendor/
+                    echo 'Ejecutando composer install...'
+                    sh 'docker-compose run --rm --user root -w /var/www/html tests composer install --no-interaction --prefer-dist'
                 }
             }
         }
 
-        // ... El resto de las etapas se mantienen sin cambios por ahora
         stage('Ejecutar Pruebas PHPUnit') {
             steps {
                 echo 'Ejecutando pruebas unitarias y de integración...'
                 dir(pwd()) {
+                    // Ejecuta PHPUnit y genera el reporte de cobertura
                     sh 'docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml'
                 }
             }
@@ -82,6 +87,7 @@ pipeline {
             steps {
                 echo 'Levantando servicio WEB para el despliegue...'
                 dir(pwd()) {
+                    // Levanta el servicio web
                     sh 'docker-compose up -d web'
                 }
             }
@@ -92,8 +98,9 @@ pipeline {
         always {
             echo 'Limpiando servicios de prueba (tests y db)...'
             dir(pwd()) {
+                // Limpieza total del ambiente de pruebas
                 sh 'docker-compose down -v --remove-orphans'
             }
         }
     } 
-} 
+}
