@@ -1,5 +1,5 @@
 pipeline {
-    //Usamos 'any' para que Jenkins use cualquier ejecutor disponible,
+    // CAMBIO AQUÍ: Usamos 'any' para que Jenkins use cualquier ejecutor disponible,
     // asumiendo que el único nodo (el maestro) tiene Docker, docker-compose y Git.
     agent any
 
@@ -16,6 +16,10 @@ pipeline {
         stage('Clonar código') {
             steps {
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
+                
+                // *** COMANDO DE DIAGNÓSTICO para verificar si el código se clonó ***
+                sh 'echo "Contenido del Workspace de Jenkins:"'
+                sh 'ls -al'
             }
         }
 
@@ -44,8 +48,8 @@ pipeline {
             steps {
                 sh '''
                     echo "Instalando dependencias con Composer..."
-                    # Este paso falla si no hay composer.json, la limpieza previa debería resolverlo
-                    docker-compose run --rm tests composer install
+                    # *** CAMBIO CRÍTICO: Añadimos --user root para resolver problemas de permisos en volúmenes ***
+                    docker-compose run --rm --user root tests composer install
                 '''
             }
         }
@@ -90,4 +94,5 @@ pipeline {
             echo 'Pipeline finalizado.'
         }
     }
+}
 }
