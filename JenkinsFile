@@ -7,100 +7,55 @@ pipeline {
         stage('Limpieza e Inicialización') {
             steps {
                 cleanWs()
-                echo 'Workspace limpio.'
-                // Clonar la última versión del código
                 git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
-                sh 'ls -al'
             }
         }
 
         stage('Preparación de Entorno Docker') {
             steps {
-                echo 'Construyendo imágenes sin caché...'
-                dir(pwd()) {
-                    // Construye las imágenes Docker
-                    sh 'docker-compose build --no-cache db tests web' 
-                }
-                echo 'Levantando servicios iniciales (DB y Tests)...'
-                dir(pwd()) {
-                    // Levanta la DB y el contenedor de Tests
-                    sh 'docker-compose up -d db tests'
-                }
-                // Espera crucial para que la DB se inicie completamente
-                echo 'Esperando 10 segundos para la inicialización completa de la base de datos...'
+                sh 'docker-compose build --no-cache'
+                sh 'docker-compose up -d db tests'
                 sh 'sleep 10'
             }
         }
 
         stage('Instalar Dependencias PHP') {
             steps {
-                echo 'Instalando dependencias de Composer dentro del contenedor de pruebas...'
-                dir(pwd()) {
-                    // *** SOLUCIÓN 1: Sincronización Forzada de Volumen ***
-                    // Detener y remover el contenedor para asegurar un montaje limpio del volumen.
-                    echo 'Forzando sincronización del volumen: deteniendo y recreando el contenedor tests...'
-                    sh 'docker-compose stop tests'
-                    sh 'docker-compose rm -f tests'
-
-                    // *** SOLUCIÓN 2: Corrección de Permisos (CHOWN) ***
-                    // Esto es VITAL para resolver el error de 'composer.json' no encontrado o permisos.
-                    echo 'Asegurando permisos de escritura para www-data en /var/www/html...'
-                    sh 'docker-compose run --rm --user root tests chown -R www-data:www-data /var/www/html'
-
-                    // *** SOLUCIÓN 3: Ejecución de Composer (Definitiva) ***
-                    // Ejecuta Composer como root para evitar problemas al crear la carpeta vendor/
-                    echo 'Ejecutando composer install...'
-                    sh 'docker-compose run --rm --user root -w /var/www/html tests composer install --no-interaction --prefer-dist'
-                }
+                sh 'docker-compose stop tests'
+                sh 'docker-compose rm -f tests'
+                sh 'docker-compose run --rm --user root tests chown -R www-data:www-data /var/www/html'
+                sh 'docker-compose run --rm --user root -w /var/www/html tests composer install --no-interaction --prefer-dist'
             }
         }
 
-        stage('Ejecutar Pruebas PHPUnit') {
+        stage('Ejecutar Pruebas') {
             steps {
-                echo 'Ejecutando pruebas unitarias y de integración...'
-                dir(pwd()) {
-                    // Ejecuta PHPUnit y genera el reporte de cobertura
-                    sh 'docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml'
-                }
+                sh 'docker-compose run --rm tests vendor/bin/phpunit --coverage-clover=coverage.xml'
             }
         }
 
         stage('Subir cobertura a Codecov') {
             steps {
-                echo 'Subiendo reporte de cobertura a Codecov...'
                 withCredentials([string(credentialsId: 'CODECOV_TOKEN', variable: 'TOKEN')]) {
                     sh '''
                         if [ -f coverage.xml ]; then
-                            bash <(curl -s https://codecov.io/bash) \
-                                -t $TOKEN \
-                                -f coverage.xml \
-                                -F php
-                        else
-                            echo "ADVERTENCIA: No se encontró coverage.xml. Omitiendo subida a Codecov."
+                            bash <(curl -s https://codecov.io/bash) -t $TOKEN -f coverage.xml -F php
                         fi
                     '''
                 }
             }
         }
-        
-        stage('Despliegue (Levantar aplicación WEB)') {
+
+        stage('Despliegue Web') {
             steps {
-                echo 'Levantando servicio WEB para el despliegue...'
-                dir(pwd()) {
-                    // Levanta el servicio web
-                    sh 'docker-compose up -d web'
-                }
+                sh 'docker-compose up -d web'
             }
         }
     }
 
     post {
         always {
-            echo 'Limpiando servicios de prueba (tests y db)...'
-            dir(pwd()) {
-                // Limpieza total del ambiente de pruebas
-                sh 'docker-compose down -v --remove-orphans'
-            }
+            sh 'docker-compose down -v --remove-orphans'
         }
-    } 
+    }
 }

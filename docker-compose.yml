@@ -15,9 +15,8 @@ services:
       - "3307:3306"
     volumes:
       - dbdata:/var/lib/mysql
-    
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u$$MYSQL_USER", "-p$$MYSQL_PASSWORD"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uuser_test", "-ppassword_test"]
       interval: 10s
       timeout: 5s
       retries: 5
