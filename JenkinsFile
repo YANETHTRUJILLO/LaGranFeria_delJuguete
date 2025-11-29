@@ -7,7 +7,7 @@ pipeline {
         stage('Limpieza e Inicialización') {
             steps {
                 cleanWs()
-                git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete', branch: 'main'
+                git url: 'https://github.com/YANETHTRUJILLO/LaGranFeria_delJuguete.git', branch: 'main'
             }
         }
 
