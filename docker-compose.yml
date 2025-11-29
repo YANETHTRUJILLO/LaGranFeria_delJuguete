@@ -16,7 +16,6 @@ services:
     volumes:
       - dbdata:/var/lib/mysql
     
-    # Asegura que MySQL esté listo. Usamos la variable de entorno del usuario.
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u$$MYSQL_USER", "-p$$MYSQL_PASSWORD"]
       interval: 10s
@@ -26,9 +25,8 @@ services:
   tests:
     build: .
     container_name: granferia_tests
-    # *** CLAVE: VOLUMEN CORRECTO ***
     volumes:
-      - .:/var/www/html
+      - /var/jenkins_home/workspace/granferia-pipeline:/var/www/html
     environment:
       DB_HOST: db
       DB_NAME: granferia
@@ -43,7 +41,7 @@ services:
     build: .
     container_name: granferia_web
     volumes:
-      - .:/var/www/html
+      - /var/jenkins_home/workspace/granferia-pipeline:/var/www/html
     working_dir: /var/www/html
     ports:
       - "8080:80"
